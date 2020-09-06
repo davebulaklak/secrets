@@ -2,11 +2,14 @@ require('dotenv').config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
-const encrypt = require("mongoose-encryption");
 const ejs = require("ejs");
 const e = require("express");
-// const _ = require('lodash');
+//const md5 = require("md5");
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
 
+// const _ = require('lodash');
+// const encrypt = require("mongoose-encryption");
 const app = express();
 
 app.set('view engine', 'ejs');
@@ -20,7 +23,7 @@ userSchema = new mongoose.Schema({
     password:   String
 });
 
-userSchema.plugin(encrypt,{secret: process.env.SECRET,encryptedFields: ["password"] });
+// userSchema.plugin(encrypt,{secret: process.env.SECRET,encryptedFields: ["password"] });
 
 User = mongoose.model("User", userSchema);
 
@@ -34,14 +37,19 @@ app.get("/register",function(req, res){
 
 app.post("/register",function(req, res){
     //console.log(req.body.username + " : " + req.body.password);
-    const newUser = new User({email : req.body.username, password : req.body.password});
-    newUser.save(function(err){
-        if(err){
-            res.send("Error: " + err);
-        }else{
-            res.render("secrets");
-        }
+    bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
+        // Store hash in your password DB.
+        const newUser = new User({email : req.body.username, password : hash});
+        newUser.save(function(err){
+            if(err){
+                res.send("Error: " + err);
+            }else{
+                res.render("secrets");
+            }
+        });
     });
+
+
 });
 
 app.get("/login",function(req, res){
@@ -49,7 +57,7 @@ app.get("/login",function(req, res){
 });
 
 app.post("/login",function(req, res){
-    console.log(req.body.username + " : " + req.body.password);
+    //console.log(req.body.username + " : " + req.body.password);
     const userName = req.body.username;
     const passWord = req.body.password;
     User.findOne({ email: userName }, function (err, user) {
@@ -58,12 +66,15 @@ app.post("/login",function(req, res){
         }else{
             if (user != null && user != ""){
                 console.log(user);
-                if( passWord === user.password){
-                    res.render("secrets");
-                }else{
-                    res.send("Incorrect password");
-                }
-               
+                
+                bcrypt.compare(passWord, user.password, function(err, result) {
+                    if (result === true){
+                        res.render("secrets");
+                    }else{
+                        res.send("Incorrect password");
+                    }
+                });
+                
             }else{
                 res.send("User not found.");
             }
